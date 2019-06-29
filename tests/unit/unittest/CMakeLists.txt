@@ -29,7 +29,6 @@ add_qtc_test(unittest GTEST
   SOURCES
     builddependenciesprovider-test.cpp
     builddependenciesstorage-test.cpp
-    changedfilepathcompressor-test.cpp
     clangindexingsettingsmanager-test.cpp
     clangpathwatcher-test.cpp
     clangqueryexamplehighlightmarker-test.cpp
@@ -44,6 +43,7 @@ add_qtc_test(unittest GTEST
     cppprojectfilecategorizer-test.cpp
     cppprojectinfogenerator-test.cpp
     cppprojectpartchooser-test.cpp
+    directorypathcompressor-test.cpp
     dummyclangipcclient.h
     dynamicastmatcherdiagnosticcontainer-matcher.h
     eventspy.cpp eventspy.h
@@ -82,6 +82,7 @@ add_qtc_test(unittest GTEST
     mockgeneratedfiles.h
     mockmodifiedtimechecker.h
     mockmutex.h
+    mockfilesystem.h
     mockpchcreator.h
     mockpchmanagerclient.h
     mockpchmanagernotifier.h
