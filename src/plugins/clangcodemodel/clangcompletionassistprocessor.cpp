@@ -476,6 +476,7 @@ bool ClangCompletionAssistProcessor::completeInclude(const QTextCursor &cursor)
     const ::Utils::MimeType mimeType = ::Utils::mimeTypeForName("text/x-c++hdr");
     const QStringList suffixes = mimeType.suffixes();
 
+    QStringList uniqueHeaderPaths;
     foreach (const ProjectExplorer::HeaderPath &headerPath, headerPaths) {
         QString realPath = headerPath.path;
         if (!directoryPrefix.isEmpty()) {
@@ -484,6 +485,14 @@ bool ClangCompletionAssistProcessor::completeInclude(const QTextCursor &cursor)
             if (headerPath.type == ProjectExplorer::HeaderPathType::Framework)
                 realPath += QLatin1String(".framework/Headers");
         }
+
+        realPath = QDir{realPath}.canonicalPath();
+        if (!realPath.isEmpty() && !uniqueHeaderPaths.contains(realPath)) {
+            uniqueHeaderPaths.append(std::move(realPath));
+        }
+    }
+
+    foreach (const QString& realPath, uniqueHeaderPaths) {
         completeIncludePath(realPath, suffixes);
     }
 
