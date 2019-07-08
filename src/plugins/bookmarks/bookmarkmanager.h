@@ -71,8 +71,11 @@ public:
     Qt::ItemFlags flags(const QModelIndex &index) const final;
 
     Qt::DropActions supportedDragActions() const final;
+    Qt::DropActions supportedDropActions() const final;
     QStringList mimeTypes() const final;
     QMimeData *mimeData(const QModelIndexList &indexes) const final;
+
+    bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) override;
 
     // this QItemSelectionModel is shared by all views
     QItemSelectionModel *selectionModel() const;
@@ -115,6 +118,8 @@ private:
     void addBookmark(const QString &s);
     static QString bookmarkToString(const Bookmark *b);
     void saveBookmarks();
+    void swapBookmarks(int oldIndex, int newIndex);
+    void moveBookmark(int from, int to);
 
     QMap<Utils::FilePath, QVector<Bookmark *>> m_bookmarksMap;
 

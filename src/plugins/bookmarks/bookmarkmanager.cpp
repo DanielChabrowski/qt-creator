@@ -205,7 +205,9 @@ BookmarkView::BookmarkView(BookmarkManager *manager)  :
     setSelectionMode(QAbstractItemView::SingleSelection);
     setSelectionBehavior(QAbstractItemView::SelectRows);
     setDragEnabled(true);
-    setDragDropMode(QAbstractItemView::DragOnly);
+    setDragDropMode(QAbstractItemView::InternalMove);
+    setAcceptDrops(true);
+    setDropIndicatorShown(true);
 
     connect(this, &QAbstractItemView::clicked, this, &BookmarkView::gotoBookmark);
     connect(this, &QAbstractItemView::activated, this, &BookmarkView::gotoBookmark);
@@ -388,11 +390,16 @@ QVariant BookmarkManager::data(const QModelIndex &index, int role) const
 Qt::ItemFlags BookmarkManager::flags(const QModelIndex &index) const
 {
     if (!index.isValid() || index.column() !=0 || index.row() < 0 || index.row() >= m_bookmarksList.count())
-        return Qt::NoItemFlags;
-    return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled;
+        return Qt::ItemIsDropEnabled;
+    return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled;
 }
 
 Qt::DropActions BookmarkManager::supportedDragActions() const
+{
+    return Qt::MoveAction;
+}
+
+Qt::DropActions BookmarkManager::supportedDropActions() const
 {
     return Qt::MoveAction;
 }
@@ -412,6 +419,31 @@ QMimeData *BookmarkManager::mimeData(const QModelIndexList &indexes) const
         data->addFile(bookMark->fileName().toString(), bookMark->lineNumber());
     }
     return data;
+}
+
+bool BookmarkManager::dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent)
+{
+    Q_UNUSED(action);
+
+    const auto * const dropData = dynamic_cast<const DropMimeData *>(data);
+    const auto& file = dropData->files().at(0);
+
+    Bookmark *bookmark = findBookmark(FilePath::fromString(file.filePath), file.line);
+    const int oldIndex = m_bookmarksList.indexOf(bookmark);
+
+    int rowToInsert{0};
+    if (parent.isValid()) {
+        rowToInsert = parent.row();
+        swapBookmarks(oldIndex, rowToInsert);
+    } else {
+        rowToInsert = row != -1 ? row : m_bookmarksList.size();
+        --rowToInsert;
+        moveBookmark(oldIndex, rowToInsert);
+    }
+
+    qDebug() << file.filePath << file.line << row << column << parent;
+    qDebug() << "Old index: " << oldIndex << " New index: " << rowToInsert;
+    return true;
 }
 
 void BookmarkManager::toggleBookmark(const FilePath &fileName, int lineNumber)
@@ -629,17 +661,7 @@ void BookmarkManager::moveUp()
         row = m_bookmarksList.size();
      --row;
 
-    // swap current.row() and row
-
-    Bookmark *b = m_bookmarksList.at(row);
-    m_bookmarksList[row] = m_bookmarksList.at(current.row());
-    m_bookmarksList[current.row()] = b;
-
-    QModelIndex topLeft = current.sibling(row, 0);
-    QModelIndex bottomRight = current.sibling(current.row(), 2);
-    emit dataChanged(topLeft, bottomRight);
-    selectionModel()->setCurrentIndex(current.sibling(row, 0), QItemSelectionModel::Select | QItemSelectionModel::Clear);
-
+    swapBookmarks(current.row(), row);
     saveBookmarks();
 }
 
@@ -651,16 +673,7 @@ void BookmarkManager::moveDown()
     if (row == m_bookmarksList.size())
         row = 0;
 
-    // swap current.row() and row
-    Bookmark *b = m_bookmarksList.at(row);
-    m_bookmarksList[row] = m_bookmarksList.at(current.row());
-    m_bookmarksList[current.row()] = b;
-
-    QModelIndex topLeft = current.sibling(current.row(), 0);
-    QModelIndex bottomRight = current.sibling(row, 2);
-    emit dataChanged(topLeft, bottomRight);
-    selectionModel()->setCurrentIndex(current.sibling(row, 0), QItemSelectionModel::Select | QItemSelectionModel::Clear);
-
+    swapBookmarks(current.row(), row);
     saveBookmarks();
 }
 
@@ -758,6 +771,30 @@ void BookmarkManager::addBookmark(const QString &s)
     } else {
         qDebug() << "BookmarkManager::addBookmark() Invalid bookmark string:" << s;
     }
+}
+
+void BookmarkManager::swapBookmarks(int oldPos, int newPos)
+{
+    m_bookmarksList.swap(oldPos, newPos);
+
+    QModelIndex current = selectionModel()->currentIndex();
+    QModelIndex oldIndex = current.sibling(std::max(oldPos, newPos), 0);
+    QModelIndex newIndex = current.sibling(std::min(oldPos, newPos), 0);
+
+    emit dataChanged(oldIndex, oldIndex.siblingAtColumn(2));
+    emit dataChanged(newIndex, newIndex.siblingAtColumn(2));
+    selectionModel()->setCurrentIndex(current.sibling(newPos, 0), QItemSelectionModel::Select | QItemSelectionModel::Clear);
+}
+
+void BookmarkManager::moveBookmark(int from, int to)
+{
+    m_bookmarksList.move(from, to);
+
+    QModelIndex current = selectionModel()->currentIndex();
+    QModelIndex topLeft = current.sibling(std::min(from, to), 0);
+    QModelIndex bottomRight = current.sibling(std::max(from, to), 2);
+    emit dataChanged(topLeft, bottomRight);
+    selectionModel()->setCurrentIndex(current.sibling(to, 0), QItemSelectionModel::Select | QItemSelectionModel::Clear);
 }
 
 /* Puts the bookmark in a string for storing it in the settings. */
